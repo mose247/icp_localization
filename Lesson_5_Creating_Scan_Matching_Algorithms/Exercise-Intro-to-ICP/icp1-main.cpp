@@ -37,7 +37,7 @@ Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose start
 	if (icp.hasConverged ()){
 		std::cout << "\nICP has converged, score is " << icp.getFitnessScore () << std::endl;
 		std::cout << "\nICP transformation " << iterations << " : cloud_icp -> cloud_in" << std::endl;
-		transformation_matrix = icp.getFinalTransformation ().cast<double>();
+		transformation_matrix = icp.getFinalTransformation().cast<double>() * init_transformation;
 	}
 	else{
 		PCL_ERROR ("\nICP has not converged.\n");
@@ -87,12 +87,12 @@ int main(){
 	vector<Vect2> movement = {Vect2(0.5,pi/12)};
 
 	// Part 2. TODO: localize after several steps
-	if(false){ // Change to true
+	if(true){ // Change to true
 		movement.push_back(Vect2(0.8, pi/10));
 		movement.push_back(Vect2(1.0, pi/6));
 	}
 	// Part 3. TODO: localize after randomly moving around the whole room
-	if(false){ // Change to true
+	if(true){ // Change to true
 		srand(time(0));
 		for(int i = 0; i < 10; i++){
 			double mag = 0.5 * ((double) rand() / (RAND_MAX)) + 0.5;
@@ -117,18 +117,17 @@ int main(){
 		renderPointCloud(viewer, scan, "scan_"+to_string(count), Color(1,0,0)); // render scan
 		 
 		// perform localization
-		Eigen::Matrix4d transform = ICP(map, scan, location, 10); //TODO: make the iteration count greater than zero
+		Eigen::Matrix4d transform = ICP(map, scan, location, 100); //TODO: make the iteration count greater than zero
 		Pose estimate = getPose(transform);
 
 		// save estimate location and use it as starting pose for ICP next time
 		location = estimate;
-
 		locator->points.push_back(PointT(estimate.position.x, estimate.position.y, 0));
 		
 		// view transformed scan
 		PointCloudT::Ptr scan_transformed(new PointCloudT);
 		pcl::transformPointCloud(*scan, *scan_transformed, transform);
-		renderPointCloud(viewer, scan_transformed, "transformed_scan_"+to_string(count), Color(1,0,0)); // render transformed scan
+		renderPointCloud(viewer, scan_transformed, "transformed_scan_"+to_string(count), Color(0,1,0)); // render transformed scan
 		
 		count++;
 	}
