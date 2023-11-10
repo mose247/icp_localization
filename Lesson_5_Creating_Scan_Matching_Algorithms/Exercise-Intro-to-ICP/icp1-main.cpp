@@ -13,12 +13,37 @@ using namespace std;
 
 Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose, int iterations){
 
-	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity ();
+	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
 
-	//TODO: complete the ICP function and return the corrected transform
+	// align source point cloud with starting pose of the robot
+	Eigen::Matrix4d init_transformation = transform2D(startingPose.theta, startingPose.position.x, startingPose.position.y);
+	PointCloudT::Ptr source_transformed (new PointCloudT); 
+	pcl::transformPointCloud(*source, *source_transformed, init_transformation);
+
+	// time object to measure the elapsed time
+	pcl::console::TicToc time;
+	time.tic();
+
+	// ICP algorithm
+	PointCloudT::Ptr cloud_out (new PointCloudT);
+	pcl::IterativeClosestPoint<PointT, PointT> icp;
+	icp.setMaximumIterations (iterations);
+	icp.setInputSource (source_transformed);
+	icp.setInputTarget (target);
+	icp.align (*cloud_out);
+
+	std::cout << "Applied " << iterations << " ICP iteration(s) in " << time.toc () << " ms" << std::endl;
+
+	if (icp.hasConverged ()){
+		std::cout << "\nICP has converged, score is " << icp.getFitnessScore () << std::endl;
+		std::cout << "\nICP transformation " << iterations << " : cloud_icp -> cloud_in" << std::endl;
+		transformation_matrix = icp.getFinalTransformation ().cast<double>();
+	}
+	else{
+		PCL_ERROR ("\nICP has not converged.\n");
+	}
 
 	return transformation_matrix;
-
 }
 
 int main(){
@@ -92,15 +117,18 @@ int main(){
 		renderPointCloud(viewer, scan, "scan_"+to_string(count), Color(1,0,0)); // render scan
 		 
 		// perform localization
-		Eigen::Matrix4d transform = ICP(map, scan, location, 0); //TODO: make the iteration count greater than zero
+		Eigen::Matrix4d transform = ICP(map, scan, location, 10); //TODO: make the iteration count greater than zero
 		Pose estimate = getPose(transform);
-		// TODO: save estimate location and use it as starting pose for ICP next time
-		
+
+		// save estimate location and use it as starting pose for ICP next time
+		location = estimate;
+
 		locator->points.push_back(PointT(estimate.position.x, estimate.position.y, 0));
 		
 		// view transformed scan
-		// TODO: perform the transformation on the scan using transform from ICP
-		// TODO: render the correct scan
+		PointCloudT::Ptr scan_transformed(new PointCloudT);
+		pcl::transformPointCloud(*scan, *scan_transformed, transform);
+		renderPointCloud(viewer, scan_transformed, "transformed_scan_"+to_string(count), Color(1,0,0)); // render transformed scan
 		
 		count++;
 	}
