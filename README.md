@@ -53,4 +53,5 @@ Next, to run the simulation follow the instructions in the specific [README](/Le
 
 ## Results
 Localization using ICP scan matching over a 190m road segment.
+
 ![img](https://github.com/mose247/localization_exercises/blob/main/Lesson_7_Project_Scan_Matching_Localization/c3-project/img/ICP_results.png)
