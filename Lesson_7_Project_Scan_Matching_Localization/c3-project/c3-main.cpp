@@ -100,79 +100,63 @@ void drawCar(Pose pose, int num, Color color, double alpha, pcl::visualization::
 }
 
 
-Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose initPose, int iterations){	
-	// Initialize transformation matrix as the identity
-	Eigen::Matrix4d finalTrans = Eigen::Matrix4d::Identity();
+Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose) {
+    Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity ();
+    Eigen::Matrix4d initTransform = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
+    PointCloudT::Ptr transformSource (new PointCloudT); 
+    pcl::transformPointCloud (*source, *transformSource, initTransform);
 
-	// Transfrom source cloud in global coordinates 
-	PointCloudT::Ptr sourceTransformed(new PointCloudT);
-	Eigen::Matrix4d initTrans = transform3D(initPose.rotation.yaw, initPose.rotation.pitch, initPose.rotation.roll,
-											initPose.position.x, initPose.position.y, initPose.position.z);
-	pcl::transformPointCloud(*source, *sourceTransformed, initTrans);
+    pcl::console::TicToc time;
+    time.tic ();
+    pcl::IterativeClosestPoint<PointT, PointT> icp;
+    icp.setTransformationEpsilon(1e-8); //0.000001);
+    int iterations = 60; //50; //25; //4; //3;
+    icp.setMaximumIterations(iterations);
+    icp.setInputSource(transformSource);
+    icp.setInputTarget(target);
+    //icp.setMaxCorrespondenceDistance(20); //15); //8); //2);
+    //icp.setTransformationEpsilon(0.001);
+    //icp.setEuclideanFitnessEpsilon(0.00001); //.05);
+    //icp.setRANSACOutlierRejectionThreshold (10);
 
-	// Time object to track elapsed time
-	pcl::console::TicToc time;
-	time.tic();
+    PointCloudT::Ptr cloud_icp (new PointCloudT);  // ICP output point cloud
+    icp.align(*cloud_icp);
+    cout << "ICP has converged: " << icp.hasConverged () << " score: " << icp.getFitnessScore () <<  " time: " << time.toc() <<  " ms" << endl;
 
-	// Store the icp transformed point cloud 
-	PointCloudT::Ptr cloudICP(new PointCloudT);
-
-	// ICP algorithm
-	pcl::IterativeClosestPoint<PointT, PointT> icp;
-	icp.setMaximumIterations(iterations);
-	icp.setInputSource(sourceTransformed);
-	icp.setInputTarget(target);
-	icp.align(*cloudICP);
-
-	// Check convergence
-  	if (icp.hasConverged()){
-		std::cout << "\nICP has converged, score is " << icp.getFitnessScore () << std::endl;
-		std::cout << "\nICP transformation " << iterations << " : cloud_icp -> cloud_in" << std::endl;
-		finalTrans = icp.getFinalTransformation().cast<double>() * initTrans;
-	}
-	else{
-		PCL_ERROR ("\nICP has not converged.\n");
-	}
-
-	return finalTrans;
+    if (icp.hasConverged ()) {
+      transformation_matrix = icp.getFinalTransformation ().cast<double>();
+      transformation_matrix =  transformation_matrix * initTransform;
+      return transformation_matrix;
+    } else cout << "WARNING: ICP did not converge" << endl;
+    return transformation_matrix;
 }
 
 
-Eigen::Matrix4d NDT(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose initPose, int iterations, float step, float resolution){	
-	// Initialize transformation matrix as the identity
-	Eigen::Matrix4d finalTrans = Eigen::Matrix4d::Identity();
+Eigen::Matrix4d NDT(PointCloudT::Ptr mapCloud, PointCloudT::Ptr source, Pose startingPose) {
+    pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt;
+    // Setting minimum transformation difference for termination condition.
+    ndt.setTransformationEpsilon(1e-8); //1e-8); //1e-8); //0.000001);//.0001); 
+    // Setting maximum step size for More-Thuente line search.
+    //ndt.setStepSize(20); //15); //8); //5); //2); //1);
+    //Setting Resolution of NDT grid structure (VoxelGridCovariance).
+    ndt.setResolution(1); //1.5); //2); //0.5); //1);
+    //ndt.setEuclideanFitnessEpsilon(0.00001); //.05);
+    ndt.setInputTarget(mapCloud);
 
-	// Set initial alignment estimation using robot initial pose
-	Eigen::Matrix4d initTrans = transform3D(initPose.rotation.yaw, initPose.rotation.pitch, initPose.rotation.roll,
-											initPose.position.x, initPose.position.y, initPose.position.z);
+    pcl::console::TicToc time;
+    time.tic ();
+    Eigen::Matrix4f init_guess = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z).cast<float>();
 
-	// Time object to track elapsed time
-	pcl::console::TicToc time;
-	time.tic();
+    // Setting max number of registration iterations.
+    int iterations = 60; //60; //50; //25; //15; //10; //6; //3;
+    ndt.setMaximumIterations(iterations);
+    ndt.setInputSource(source);
 
-	// Store the ndt transformed point cloud 
-	PointCloudT::Ptr cloudNDT(new PointCloudT);
-
-	// NDT algorithm
-	pcl::NormalDistributionTransform<PointT, PointT> ndt;
-	ndt.setMaximumIterations(iterations);
-	ndt.setStepSize(step);
-	ndt.setResolution(resolution);
-	ndt.setInputSource(source);
-	ndt.setInputTarget(target);
-	ndt.align(*cloudNDT, initTrans);
-
-	// Check convergence
-  	if (ndt.hasConverged()){
-		std::cout << "\nNDT has converged, score is " << ndt.getFitnessScore () << std::endl;
-		std::cout << "\nNDT transformation " << iterations << " : cloud_ndt -> cloud_in" << std::endl;
-		finalTrans = ndt.getFinalTransformation().cast<double>();
-	}
-	else{
-		PCL_ERROR ("\nNDT has not converged.\n");
-	}
-
-	return finalTrans;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ndt (new pcl::PointCloud<pcl::PointXYZ>);
+    ndt.align (*cloud_ndt, init_guess);
+    cout << "NDT has converged: " << ndt.hasConverged () << " score: " << ndt.getFitnessScore () <<  " time: " << time.toc() <<  " ms" << endl;
+    Eigen::Matrix4d transformation_matrix = ndt.getFinalTransformation ().cast<double>();
+    return transformation_matrix;
 }
 
 
@@ -281,7 +265,8 @@ int main(){
 			// TODO: downsample scanned point cloud using voxel filter
 			pcl::VoxelGrid<PointT> vox;
 			vox.setInputCloud(scanCloud);
-			vox.setLeafSize(0.1f, 0.1f, 0.1f);
+			vox.setLeafSize(0.5f, 0.5f, 0.5f);
+			PointCloudT::Ptr cloudFiltered(new PointCloudT);
 			vox.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
@@ -291,7 +276,7 @@ int main(){
 
 			// TODO: Transform scan so it aligns with ego's actual pose and render that scan
 			PointCloudT::Ptr scanCloudTrans(new PointCloudT);
-			pcl::transformPointCloud(*cloudFiltered, *scanCloudTrans, icpTrans);
+			pcl::transformPointCloud(*cloudFiltered, *scanCloudTrans, poseTransformation);
 
 			viewer->removePointCloud("scan");
 
