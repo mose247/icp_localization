@@ -138,6 +138,44 @@ Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose initP
 }
 
 
+Eigen::Matrix4d NDT(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose initPose, int iterations, float step, float resolution){	
+	// Initialize transformation matrix as the identity
+	Eigen::Matrix4d finalTrans = Eigen::Matrix4d::Identity();
+
+	// Set initial alignment estimation using robot initial pose
+	Eigen::Matrix4d initTrans = transform3D(initPose.rotation.yaw, initPose.rotation.pitch, initPose.rotation.roll,
+											initPose.position.x, initPose.position.y, initPose.position.z);
+
+	// Time object to track elapsed time
+	pcl::console::TicToc time;
+	time.tic();
+
+	// Store the ndt transformed point cloud 
+	PointCloudT::Ptr cloudNDT(new PointCloudT);
+
+	// NDT algorithm
+	pcl::NormalDistributionTransform<PointT, PointT> ndt;
+	ndt.setMaximumIterations(iterations);
+	ndt.setStepSize(step);
+	ndt.setResolution(resolution);
+	ndt.setInputSource(source);
+	ndt.setInputTarget(target);
+	ndt.align(*cloudNDT, initTrans);
+
+	// Check convergence
+  	if (ndt.hasConverged()){
+		std::cout << "\nNDT has converged, score is " << ndt.getFitnessScore () << std::endl;
+		std::cout << "\nNDT transformation " << iterations << " : cloud_ndt -> cloud_in" << std::endl;
+		finalTrans = ndt.getFinalTransformation().cast<double>();
+	}
+	else{
+		PCL_ERROR ("\nNDT has not converged.\n");
+	}
+
+	return finalTrans;
+}
+
+
 int main(){
 
 	auto client = cc::Client("localhost", 2000);
@@ -247,8 +285,9 @@ int main(){
 			vox.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
-			Eigen::Matrix4d icpTrans = ICP(mapCloud, cloudFiltered, pose, 50);
-			pose = getPose(icpTrans);
+			Eigen::Matrix4d poseTransformation = ICP(mapCloud, cloudFiltered, pose, 50);
+			//Eigen::Matrix4d poseTransformation = NDT(mapCloud, cloudFiltered, pose, 50, 0.1, 1.0);
+			pose = getPose(poseTransformation);
 
 			// TODO: Transform scan so it aligns with ego's actual pose and render that scan
 			PointCloudT::Ptr scanCloudTrans(new PointCloudT);
