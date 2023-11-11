@@ -1,4 +1,4 @@
-# nd0013_cd2693_Exercise_Starter_Code
+# Scan Matching Localization Project
 
 ## Dependencies
 Before you practice the exercises in this repository, ensure that your development environment is configured with the following tools and dependencies:
@@ -16,20 +16,14 @@ Before you practice the exercises in this repository, ensure that your developme
 - ROS
 
 
-# Instructions
-
-## Fork and Clone the Repository
-Fork the repository to your Github account and clone it to your local development environment using the following commands:
+## Intall & Run
+To begin with, clone the repository to your local development environment using the following commands:
 
 ```bash
-git clone https://github.com/udacity/nd0013_cd2693_Exercise_Starter_Code.git
+git clone https://github.com/mose247/scan_matching_localization.git
 cd nd0013_cd2693_Exercise_Starter_Code
 ```
 
-Next, select the lesson you want to practice. The sections below outline the lesson-specific instructions.
-
-### Scan Matching Localization Project
-
-To run the simulation follow the instructions in the specific [README](/Lesson_7_Project_Scan_Matching_Localization/c3-project/README.md). 
+Next, to run the simulation follow the instructions in the specific [README](/Lesson_7_Project_Scan_Matching_Localization/c3-project/README.md). 
 
 
