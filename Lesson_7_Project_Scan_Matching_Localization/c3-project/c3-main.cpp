@@ -200,7 +200,12 @@ int main(){
 		if(!new_scan){
 			
 			new_scan = true;
-			// TODO: (Filter scan using voxel filter)
+
+			// TODO: downsample map point cloud using voxel filter
+			pcl::VoxelGrid<PointT> vox;
+			vox.setInputCloud(scanCloud);
+			vox.setLeafSize(0.1f, 0.1f, 0.1f);
+			vox.filter(cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
 			//pose = ....
